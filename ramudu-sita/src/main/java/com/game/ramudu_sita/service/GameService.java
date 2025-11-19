@@ -1,15 +1,23 @@
 package com.game.ramudu_sita.service;
 
+import com.game.ramudu_sita.api.dto.GamePublicState;
 import com.game.ramudu_sita.api.dto.MyStateResponse;
 import com.game.ramudu_sita.model.*;
+import org.springframework.context.annotation.Profile;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 
 import java.security.SecureRandom;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
 @Service
 public class GameService {
+
+    private static final long IDLE_TTL_MINUTES = 60;     // active but idle too long
+    private static final long FINISHED_TTL_MINUTES = 30; // finished games kept shorter
 
     private final Map<String, GameState> gamesById = new ConcurrentHashMap<>();
     private final Map<String, String> gameIdByCode = new ConcurrentHashMap<>();
@@ -23,25 +31,37 @@ public class GameService {
             ChitType.HANUMAN
     };
 
-    private final ChitType[] NON_ESSENTIAL_CHITS = {
-            ChitType.BHARATA,
-            ChitType.SHATRUGHNA,
-            ChitType.HANUMAN
-    };
+    private final SimpMessagingTemplate messagingTemplate;
+
+    public GameService(SimpMessagingTemplate messagingTemplate) {
+        this.messagingTemplate = messagingTemplate;
+    }
 
     // --- Game lifecycle ---
 
-    public CreateResult createGame(String playerName, int totalRounds) {
+    public CreateResult createGame(String playerName, int totalRounds, String creatorKey) {
+        // Spam protection: limit active games per creator
+        long activeGames = gamesById.values().stream()
+                .filter(g -> creatorKey.equals(g.getCreatorKey()))
+                .filter(g -> g.getStatus() != GameStatus.FINISHED)
+                .count();
+
+        if (activeGames >= 5) { // e.g. max 5 active games per IP
+            throw new IllegalStateException("Too many active games for this client");
+        }
+
         String gameId = UUID.randomUUID().toString();
         String code = generateCode();
 
         GameState game = new GameState(gameId, code, totalRounds);
+        game.setCreatorKey(creatorKey);
         Player host = new Player(UUID.randomUUID().toString(), playerName, true);
         game.getPlayers().put(host.getId(), host);
 
         gamesById.put(gameId, game);
         gameIdByCode.put(code, gameId);
 
+        broadcastGameState(game);
         return new CreateResult(gameId, code, host.getId());
     }
 
@@ -53,6 +73,7 @@ public class GameService {
         Player player = new Player(UUID.randomUUID().toString(), playerName, false);
         game.getPlayers().put(player.getId(), player);
 
+        broadcastGameState(game);
         return new CreateResult(game.getId(), game.getCode(), player.getId());
     }
 
@@ -78,7 +99,7 @@ public class GameService {
         RoundState round = new RoundState(1);
         game.getRounds().put(1, round);
 
-        distributeChits(game, round);
+        distributeChits(game, round); // also broadcasts
     }
 
     // --- Round actions ---
@@ -115,6 +136,8 @@ public class GameService {
         round.setStatus(RoundStatus.COMPLETED);
         game.setStatus(GameStatus.REVEAL);
 
+        broadcastGameState(game); // show reveal + score delta
+
         // move to next round if any
         int current = game.getCurrentRoundNumber();
         if (current < game.getTotalRounds()) {
@@ -124,9 +147,10 @@ public class GameService {
             RoundState nextRound = new RoundState(next);
             game.getRounds().put(next, nextRound);
             game.setStatus(GameStatus.IN_ROUND);
-            distributeChits(game, nextRound);
+            distributeChits(game, nextRound); // also broadcasts
         } else {
             game.setStatus(GameStatus.FINISHED);
+            broadcastGameState(game);
         }
     }
 
@@ -226,6 +250,7 @@ public class GameService {
         }
 
         round.setStatus(RoundStatus.WAITING_FOR_RAMUDU);
+        broadcastGameState(game);
     }
 
     private Map<String, Integer> computeScores(RoundState round) {
@@ -253,6 +278,92 @@ public class GameService {
         delta.put(sita, 100);
 
         return delta;
+    }
+
+    // --- WebSocket broadcast ---
+
+    private void broadcastGameState(GameState game) {
+        GamePublicState dto = toPublicState(game);
+        String destination = "/topic/games/" + game.getId() + "/state";
+        messagingTemplate.convertAndSend(destination, dto);
+        game.touch();
+    }
+
+    private GamePublicState toPublicState(GameState game) {
+        GamePublicState state = new GamePublicState();
+        state.setGameId(game.getId());
+        state.setGameCode(game.getCode());
+        state.setGameStatus(game.getStatus());
+        state.setTotalRounds(game.getTotalRounds());
+        state.setCurrentRoundNumber(game.getCurrentRoundNumber());
+
+        List<GamePublicState.PlayerSummary> players =
+                game.getPlayers().values().stream()
+                        .map(p -> new GamePublicState.PlayerSummary(
+                                p.getId(), p.getName(), p.isHost(), p.getTotalScore()
+                        ))
+                        .toList();
+        state.setPlayers(players);
+
+        RoundState currentRound = game.getCurrentRound();
+        if (currentRound != null) {
+            state.setCurrentRoundStatus(currentRound.getStatus());
+            state.setLastRoundScoreDelta(currentRound.getScoreDelta());
+        }
+
+        return state;
+    }
+
+    /**
+     * Remove old games from memory to avoid unbounded growth.
+     * Intended to be called periodically (e.g. via @Scheduled).
+     */
+    public void cleanupOldGames() {
+        Instant now = Instant.now();
+
+        List<String> toRemove = new ArrayList<>();
+
+        for (GameState game : gamesById.values()) {
+            Instant last = game.getLastActivityAt();
+            if (last == null) {
+                // Shouldn't happen, but be safe
+                continue;
+            }
+
+            long idleMinutes = Duration.between(last, now).toMinutes();
+
+            boolean remove = false;
+            if (game.getStatus() == GameStatus.FINISHED) {
+                if (idleMinutes >= FINISHED_TTL_MINUTES) {
+                    remove = true;
+                }
+            } else {
+                if (idleMinutes >= IDLE_TTL_MINUTES) {
+                    remove = true;
+                }
+            }
+
+            if (remove) {
+                toRemove.add(game.getId());
+            }
+        }
+
+        for (String gameId : toRemove) {
+            GameState removed = gamesById.remove(gameId);
+            if (removed != null) {
+                gameIdByCode.remove(removed.getCode());
+            }
+        }
+    }
+
+    public GameState getGame(String gameId) {
+        return gamesById.get(gameId);
+    }
+
+    @Profile("test")
+    public void clearAllForTests() {
+        gamesById.clear();
+        gameIdByCode.clear();
     }
 
     // --- helper DTO for create/join result ---

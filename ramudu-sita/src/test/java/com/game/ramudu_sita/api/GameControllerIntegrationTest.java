@@ -2,12 +2,17 @@ package com.game.ramudu_sita.api;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.game.ramudu_sita.rate.RateLimiterService;
+import com.game.ramudu_sita.service.GameService;
+import jakarta.servlet.http.Cookie;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.MvcResult;
 
 import static org.hamcrest.Matchers.*;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -26,9 +31,38 @@ class GameControllerIntegrationTest {
     @Autowired
     private ObjectMapper objectMapper;
 
+    @Autowired
+    private GameService gameService;
+
+    @Autowired
+    private RateLimiterService rateLimiterService;
+
+    @AfterEach
+    void resetState() {
+        // Clear all in-memory games
+        gameService.clearAllForTests();
+
+        // Reset rate limiter
+        rateLimiterService.clearAllForTests();
+    }
+
+    /**
+     * Helper to extract a Cookie object for PLAYER_TOKEN from the Set-Cookie header.
+     */
+    private Cookie extractPlayerCookie(MvcResult result) throws Exception {
+        String setCookie = result.getResponse().getHeader("Set-Cookie");
+        assertNotNull(setCookie, "Set-Cookie header must not be null");
+        // Example: "PLAYER_TOKEN=abc-123; Path=/; HttpOnly; ..."
+        String[] parts = setCookie.split(";", 2);
+        String[] nameValue = parts[0].split("=", 2);
+        String name = nameValue[0];
+        String value = nameValue[1];
+        return new Cookie(name, value);
+    }
+
     @Test
     void fullFlow_singleRoundGame() throws Exception {
-        // 1) Create game
+        // 1) Create game (host)
         String createPayload = """
                 {
                   "playerName": "Host",
@@ -36,21 +70,18 @@ class GameControllerIntegrationTest {
                 }
                 """;
 
-        String createResponse = mockMvc.perform(post("/api/games")
+        MvcResult createResult = mockMvc.perform(post("/api/games")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(createPayload))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.gameId").isString())
-                .andExpect(jsonPath("$.gameCode").isString())
-                .andExpect(jsonPath("$.playerId").isString())
-                .andReturn()
-                .getResponse()
-                .getContentAsString();
+                .andReturn();
+
+        String createResponse = createResult.getResponse().getContentAsString();
+        Cookie hostCookie = extractPlayerCookie(createResult);
 
         JsonNode createJson = objectMapper.readTree(createResponse);
         String gameId = createJson.get("gameId").asText();
         String gameCode = createJson.get("gameCode").asText();
-        String hostPlayerId = createJson.get("playerId").asText();
 
         // 2) Two players join
         String join1Payload = """
@@ -60,14 +91,13 @@ class GameControllerIntegrationTest {
                 }
                 """.formatted(gameCode);
 
-        String join1Response = mockMvc.perform(post("/api/games/join")
+        MvcResult join1Result = mockMvc.perform(post("/api/games/join")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(join1Payload))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.playerId").isString())
-                .andReturn()
-                .getResponse()
-                .getContentAsString();
+                .andReturn();
+        Cookie p2Cookie = extractPlayerCookie(join1Result);
+        String join1Response = join1Result.getResponse().getContentAsString();
         String p2Id = objectMapper.readTree(join1Response).get("playerId").asText();
 
         String join2Payload = """
@@ -77,23 +107,23 @@ class GameControllerIntegrationTest {
                 }
                 """.formatted(gameCode);
 
-        String join2Response = mockMvc.perform(post("/api/games/join")
+        MvcResult join2Result = mockMvc.perform(post("/api/games/join")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(join2Payload))
                 .andExpect(status().isOk())
-                .andReturn()
-                .getResponse()
-                .getContentAsString();
+                .andReturn();
+        Cookie p3Cookie = extractPlayerCookie(join2Result);
+        String join2Response = join2Result.getResponse().getContentAsString();
         String p3Id = objectMapper.readTree(join2Response).get("playerId").asText();
 
-        // 3) Start game
+        // 3) Start game (host cookie must be used)
         mockMvc.perform(post("/api/games/{gameId}/start", gameId)
-                        .param("playerId", hostPlayerId))
+                        .cookie(hostCookie))
                 .andExpect(status().isOk());
 
-        // 4) Each player can see their chit
+        // 4) Each player can see their chit using their own cookie
         String hostStateJsonStr = mockMvc.perform(get("/api/games/{gameId}/me", gameId)
-                        .param("playerId", hostPlayerId))
+                        .cookie(hostCookie))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.gameStatus", is("IN_ROUND")))
                 .andExpect(jsonPath("$.currentRoundNumber", is(1)))
@@ -104,7 +134,7 @@ class GameControllerIntegrationTest {
                 .getContentAsString();
 
         String p2StateJsonStr = mockMvc.perform(get("/api/games/{gameId}/me", gameId)
-                        .param("playerId", p2Id))
+                        .cookie(p2Cookie))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.myChit", notNullValue()))
                 .andReturn()
@@ -112,7 +142,7 @@ class GameControllerIntegrationTest {
                 .getContentAsString();
 
         String p3StateJsonStr = mockMvc.perform(get("/api/games/{gameId}/me", gameId)
-                        .param("playerId", p3Id))
+                        .cookie(p3Cookie))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.myChit", notNullValue()))
                 .andReturn()
@@ -127,27 +157,41 @@ class GameControllerIntegrationTest {
         class PlayerChit {
             final String playerId;
             final String chit;
+            final Cookie cookie;
 
-            PlayerChit(String playerId, String chit) {
+            PlayerChit(String playerId, String chit, Cookie cookie) {
                 this.playerId = playerId;
                 this.chit = chit;
+                this.cookie = cookie;
             }
         }
 
-        PlayerChit pcHost = new PlayerChit(hostState.get("me").get("id").asText(),
-                hostState.get("myChit").asText());
-        PlayerChit pcP2 = new PlayerChit(p2State.get("me").get("id").asText(),
-                p2State.get("myChit").asText());
-        PlayerChit pcP3 = new PlayerChit(p3State.get("me").get("id").asText(),
-                p3State.get("myChit").asText());
+        PlayerChit pcHost = new PlayerChit(
+                hostState.get("me").get("id").asText(),
+                hostState.get("myChit").asText(),
+                hostCookie
+        );
+        PlayerChit pcP2 = new PlayerChit(
+                p2State.get("me").get("id").asText(),
+                p2State.get("myChit").asText(),
+                p2Cookie
+        );
+        PlayerChit pcP3 = new PlayerChit(
+                p3State.get("me").get("id").asText(),
+                p3State.get("myChit").asText(),
+                p3Cookie
+        );
 
         PlayerChit[] pcs = {pcHost, pcP2, pcP3};
 
         String ramuduId = null;
         String sitaId = null;
+        Cookie ramuduCookie = null;
+
         for (PlayerChit pc : pcs) {
             if ("RAMUDU".equals(pc.chit)) {
                 ramuduId = pc.playerId;
+                ramuduCookie = pc.cookie;
             }
             if ("SITA".equals(pc.chit)) {
                 sitaId = pc.playerId;
@@ -156,23 +200,24 @@ class GameControllerIntegrationTest {
 
         assertNotNull(ramuduId, "Exactly one RAMUDU must exist");
         assertNotNull(sitaId, "Exactly one SITA must exist");
+        assertNotNull(ramuduCookie, "Ramudu cookie must be found");
 
-        // 5) Ramudu makes a correct guess
+        // 5) Ramudu makes a correct guess (payload must use Sita's playerId!)
         String guessPayload = """
                 {
-                  "playerId": "%s",
                   "guessedPlayerId": "%s"
                 }
-                """.formatted(ramuduId, sitaId);
+                """.formatted(sitaId);
 
         mockMvc.perform(post("/api/games/{gameId}/rounds/current/guess", gameId)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(guessPayload))
+                        .content(guessPayload)
+                        .cookie(ramuduCookie)) // must use Ramudu's session
                 .andExpect(status().isOk());
 
         // 6) After single round game should be FINISHED; scores should be present
         mockMvc.perform(get("/api/games/{gameId}/me", gameId)
-                        .param("playerId", hostPlayerId))
+                        .cookie(hostCookie))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.gameStatus", is("FINISHED")))
                 .andExpect(jsonPath("$.players", hasSize(3)))
@@ -189,13 +234,13 @@ class GameControllerIntegrationTest {
                 }
                 """;
 
-        String createResponse = mockMvc.perform(post("/api/games")
+        MvcResult createResult = mockMvc.perform(post("/api/games")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(createPayload))
                 .andExpect(status().isOk())
-                .andReturn()
-                .getResponse()
-                .getContentAsString();
+                .andReturn();
+        String createResponse = createResult.getResponse().getContentAsString();
+        Cookie hostCookie = extractPlayerCookie(createResult);
 
         JsonNode createJson = objectMapper.readTree(createResponse);
         String gameId = createJson.get("gameId").asText();
@@ -208,21 +253,42 @@ class GameControllerIntegrationTest {
                 }
                 """.formatted(gameCode);
 
-        String joinResponse = mockMvc.perform(post("/api/games/join")
+        MvcResult joinResult = mockMvc.perform(post("/api/games/join")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(joinPayload))
                 .andExpect(status().isOk())
-                .andReturn()
-                .getResponse()
-                .getContentAsString();
-
-        String p2Id = objectMapper.readTree(joinResponse).get("playerId").asText();
+                .andReturn();
+        Cookie p2Cookie = extractPlayerCookie(joinResult);
 
         // When non-host tries to start, we expect 400 + error message
         mockMvc.perform(post("/api/games/{gameId}/start", gameId)
-                        .param("playerId", p2Id))
+                        .cookie(p2Cookie))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.error").value("Only host can start game"));
+                .andExpect(jsonPath("$.message").value("Only host can start game"));
     }
-}
 
+    @Test
+    void spamFilterBlocksTooManyActiveGamesPerCreator() throws Exception {
+
+        // Create 5 games from same IP → allowed
+        for (int i = 0; i < 5; i++) {
+            mockMvc.perform(post("/api/games")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("""
+                                { "playerName": "H", "totalRounds": 1 }
+                                """))
+                    .andExpect(status().isOk());
+        }
+
+        // 6th game should fail due to spam limit
+        mockMvc.perform(post("/api/games")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                            { "playerName": "H", "totalRounds": 1 }
+                            """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error", is("TOO_MANY_ACTIVE_GAMES")));
+    }
+
+
+}

@@ -1,3 +1,11 @@
 spring:
   application:
     name: ramudu-sita
+
+# Common game settings
+app:
+  cookie-secure: true
+  allowed-origins:
+    - "*"   # fallback for when no profile is active
+  session:
+    ttl-seconds: 1800  # 30 min

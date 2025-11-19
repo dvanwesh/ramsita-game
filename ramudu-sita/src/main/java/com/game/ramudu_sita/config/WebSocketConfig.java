@@ -10,6 +10,12 @@ import org.springframework.web.socket.config.annotation.WebSocketMessageBrokerCo
 @EnableWebSocketMessageBroker
 public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
 
+    private final AppProperties appProperties;
+
+    public WebSocketConfig(AppProperties appProperties) {
+        this.appProperties = appProperties;
+    }
+
     @Override
     public void configureMessageBroker(MessageBrokerRegistry config) {
         // Clients subscribe to /topic/...
@@ -20,9 +26,15 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
 
     @Override
     public void registerStompEndpoints(StompEndpointRegistry registry) {
-        // WebSocket endpoint for browser clients
+        String[] origins = appProperties.getAllowedOrigins().toArray(new String[0]);
+
+        // native WS
         registry.addEndpoint("/ws")
-                .setAllowedOriginPatterns("*")
-                .withSockJS(); // optional: SockJS fallback
+                .setAllowedOrigins(origins);
+
+        // optional SockJS fallback
+        registry.addEndpoint("/ws-sockjs")
+                .setAllowedOrigins(origins)
+                .withSockJS();
     }
 }

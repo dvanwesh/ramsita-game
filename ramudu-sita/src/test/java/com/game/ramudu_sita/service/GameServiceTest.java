@@ -4,7 +4,12 @@ import com.game.ramudu_sita.api.dto.MyStateResponse;
 import com.game.ramudu_sita.model.ChitType;
 import com.game.ramudu_sita.model.GameStatus;
 import com.game.ramudu_sita.model.RoundStatus;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 
 import java.util.List;
 import java.util.Map;
@@ -12,13 +17,22 @@ import java.util.stream.Collectors;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+@ExtendWith(MockitoExtension.class)
 class GameServiceTest {
 
-    private final GameService gameService = new GameService();
+    @Mock
+    private SimpMessagingTemplate messagingTemplate;
+
+    private GameService gameService;
+    @BeforeEach
+    void setUp() {
+        // we don't care about WS interactions in this class, just core logic
+        gameService = new GameService(messagingTemplate);
+    }
 
     @Test
     void createGame_initialStateIsLobbyWithHost() {
-        var result = gameService.createGame("Host", 5);
+        var result = gameService.createGame("Host", 5, null);
 
         assertNotNull(result.gameId());
         assertNotNull(result.code());
@@ -38,7 +52,7 @@ class GameServiceTest {
 
     @Test
     void joinGame_addsPlayerToLobby() {
-        var create = gameService.createGame("Host", 5);
+        var create = gameService.createGame("Host", 5, null);
         var join = gameService.joinGame(create.code(), "Player2");
 
         assertNotNull(join.playerId());
@@ -53,7 +67,7 @@ class GameServiceTest {
 
     @Test
     void startGame_requiresHost() {
-        var create = gameService.createGame("Host", 5);
+        var create = gameService.createGame("Host", 5, null);
         var join1 = gameService.joinGame(create.code(), "P2");
 
         // starting with non-host should fail
@@ -63,7 +77,7 @@ class GameServiceTest {
 
     @Test
     void startGame_requiresAtLeastThreePlayers() {
-        var create = gameService.createGame("Host", 5);
+        var create = gameService.createGame("Host", 5, null);
         // only 1 player (host)
 
         assertThrows(IllegalStateException.class,
@@ -72,7 +86,7 @@ class GameServiceTest {
 
     @Test
     void startGame_distributesChitsAndSetsRoundState() {
-        var create = gameService.createGame("Host", 5);
+        var create = gameService.createGame("Host", 5, null);
         var join1 = gameService.joinGame(create.code(), "P2");
         var join2 = gameService.joinGame(create.code(), "P3");
 
@@ -104,7 +118,7 @@ class GameServiceTest {
     @Test
     void makeGuess_correctGuess_awardsScoresAndFinishesWhenSingleRound() {
         // single round for deterministic finished state
-        var create = gameService.createGame("Host", 1);
+        var create = gameService.createGame("Host", 1, null);
         var join1 = gameService.joinGame(create.code(), "P2");
         var join2 = gameService.joinGame(create.code(), "P3");
 
@@ -154,7 +168,7 @@ class GameServiceTest {
 
     @Test
     void makeGuess_incorrectGuess_setsRamuduZeroAndSitaThousand() {
-        var create = gameService.createGame("Host", 1);
+        var create = gameService.createGame("Host", 1, null);
         var join1 = gameService.joinGame(create.code(), "P2");
         var join2 = gameService.joinGame(create.code(), "P3");
 
@@ -200,7 +214,7 @@ class GameServiceTest {
 
     @Test
     void makeGuess_byNonRamuduThrows() {
-        var create = gameService.createGame("Host", 1);
+        var create = gameService.createGame("Host", 1, null);
         var join1 = gameService.joinGame(create.code(), "P2");
         var join2 = gameService.joinGame(create.code(), "P3");
 
@@ -233,7 +247,7 @@ class GameServiceTest {
 
     @Test
     void makeGuess_whenRoundAlreadyCompletedThrows() {
-        var create = gameService.createGame("Host", 1);
+        var create = gameService.createGame("Host", 1, null);
         var join1 = gameService.joinGame(create.code(), "P2");
         var join2 = gameService.joinGame(create.code(), "P3");
 
@@ -268,7 +282,7 @@ class GameServiceTest {
     @Test
     void startGame_withTooManyPlayersForChitsThrows() {
         // we only have 5 chits in CHITS; add 6 players total
-        var create = gameService.createGame("Host", 1);
+        var create = gameService.createGame("Host", 1, null);
         gameService.joinGame(create.code(), "P2");
         gameService.joinGame(create.code(), "P3");
         gameService.joinGame(create.code(), "P4");

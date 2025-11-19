@@ -1,5 +1,6 @@
 package com.game.ramudu_sita.model;
 
+import java.time.Instant;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -10,6 +11,10 @@ public class GameState {
     private GameStatus status;
     private int totalRounds;
     private int currentRoundNumber;
+    private final Instant createdAt;
+    private Instant lastActivityAt;
+
+    private String creatorKey;    // e.g. IP or session key
 
     private final Map<String, Player> players = new LinkedHashMap<>(); // preserve join order
     private final Map<Integer, RoundState> rounds = new HashMap<>();
@@ -20,6 +25,8 @@ public class GameState {
         this.totalRounds = totalRounds;
         this.status = GameStatus.LOBBY;
         this.currentRoundNumber = 0;
+        this.createdAt = Instant.now();
+        this.lastActivityAt = this.createdAt;
     }
 
     public String getId() { return id; }
@@ -37,5 +44,21 @@ public class GameState {
 
     public RoundState getCurrentRound() {
         return rounds.get(currentRoundNumber);
+    }
+
+    public void touch() {
+        this.lastActivityAt = Instant.now();
+    }
+
+    public Instant getLastActivityAt() {
+        return lastActivityAt;
+    }
+
+    public String getCreatorKey() {
+        return creatorKey;
+    }
+
+    public void setCreatorKey(String creatorKey) {
+        this.creatorKey = creatorKey;
     }
 }

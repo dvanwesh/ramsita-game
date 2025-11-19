@@ -1,0 +1,22 @@
+spring:
+  config:
+    activate:
+      on-profile: prod
+
+# Only your deployed frontend origin allowed
+app:
+  cookie-secure: true
+  allowed-origins:
+    - "https://ramusita.yourdomain.com"
+
+server:
+  port: 8080
+
+logging:
+  level:
+    root: INFO
+    org.springframework: WARN
+    com.game.ramudu_sita: INFO
+
+# You can add future prod options:
+#  session cookies, TLS settings, error pages, etc.

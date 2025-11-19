@@ -5,10 +5,13 @@ public class CreateOrJoinGameResponse {
     private String gameCode;
     private String playerId;
 
-    public CreateOrJoinGameResponse(String gameId, String gameCode, String playerId) {
+    private String playerToken;
+
+    public CreateOrJoinGameResponse(String gameId, String gameCode, String playerId, String playerToken) {
         this.gameId = gameId;
         this.gameCode = gameCode;
         this.playerId = playerId;
+        this.playerToken = playerToken;
     }
 
     public String getGameId() {
