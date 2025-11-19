@@ -9,13 +9,14 @@ interface GameState {
   gameCode: string | null;
   me: any | null;
   state: any | null;
-  stomp: any;
+  stomp: any | null;
 
   createGame: (playerName: string, totalRounds: number) => Promise<void>;
   joinGame: (code: string, playerName: string) => Promise<void>;
   startGame: () => Promise<void>;
   loadMe: () => Promise<void>;
   guess: (playerId: string) => Promise<void>;
+  restoreFromStorage: () => Promise<void>;
 }
 
 export const useGameStore = create<GameState>((set, get) => ({
@@ -27,13 +28,19 @@ export const useGameStore = create<GameState>((set, get) => ({
 
   async createGame(playerName, totalRounds) {
     const res = await http.post("/api/games", { playerName, totalRounds });
-    const { gameId, gameCode, playerId } = res.data;
+    const { gameId, gameCode } = res.data;
 
-    // Start WebSocket for future updates
+    // Start WS client to receive future updates
     const stomp = createStompClient(gameId, (s) => set({ state: s }));
 
-    // Immediately load my state so UI can move from Home -> Lobby/Game
+    // Immediately fetch my state so UI can leave Home
     const meRes = await http.get(`/api/games/${gameId}/me`);
+
+    // Persist session for refresh
+    localStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify({ gameId, gameCode })
+    );
 
     set({
       gameId,
@@ -46,11 +53,15 @@ export const useGameStore = create<GameState>((set, get) => ({
 
   async joinGame(code, playerName) {
     const res = await http.post("/api/games/join", { code, playerName });
-    const { gameId, gameCode, playerId } = res.data;
+    const { gameId, gameCode } = res.data;
 
     const stomp = createStompClient(gameId, (s) => set({ state: s }));
-
     const meRes = await http.get(`/api/games/${gameId}/me`);
+
+    localStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify({ gameId, gameCode })
+    );
 
     set({
       gameId,
@@ -63,8 +74,9 @@ export const useGameStore = create<GameState>((set, get) => ({
 
   async startGame() {
     const { gameId } = get();
+    if (!gameId) return;
     await http.post(`/api/games/${gameId}/start`);
-    // after start, backend will broadcast; WS will update state
+    // WS will push updated state
   },
 
   async loadMe() {
@@ -76,9 +88,46 @@ export const useGameStore = create<GameState>((set, get) => ({
 
   async guess(playerId) {
     const { gameId } = get();
+    if (!gameId) return;
     await http.post(`/api/games/${gameId}/rounds/current/guess`, {
       guessedPlayerId: playerId,
     });
-    // backend broadcasts REVEAL/FINISHED; WS updates state
+    // WS will push REVEAL/FINISHED
+  },
+
+  async restoreFromStorage() {
+    if (typeof window === "undefined") return;
+
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return;
+
+    let parsed: { gameId: string; gameCode: string };
+    try {
+      parsed = JSON.parse(raw);
+    } catch {
+      localStorage.removeItem(STORAGE_KEY);
+      return;
+    }
+
+    const { gameId, gameCode } = parsed;
+
+    try {
+      // This uses the PLAYER_TOKEN cookie to identify the player in this browser
+      const meRes = await http.get(`/api/games/${gameId}/me`);
+
+      const stomp = createStompClient(gameId, (s) => set({ state: s }));
+
+      set({
+        gameId,
+        gameCode,
+        me: meRes.data.me,
+        state: meRes.data,
+        stomp,
+      });
+    } catch (e) {
+      // game may be gone or session invalid → clear stale storage
+      console.warn("Failed to restore session, clearing local storage", e);
+      localStorage.removeItem(STORAGE_KEY);
+    }
   },
 }));

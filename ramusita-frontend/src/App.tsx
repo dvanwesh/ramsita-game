@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { useGameStore } from "./store/gameStore";
 import Home from "./screens/Home";
 import Lobby from "./screens/Lobby";
@@ -7,6 +8,11 @@ import Final from "./screens/Final";
 
 export default function App() {
   const state = useGameStore((s) => s.state);
+  const restore = useGameStore((s) => s.restoreFromStorage);
+
+  useEffect(() => {
+    restore();
+  }, [restore]);
 
   if (!state) return <Home />;
 
