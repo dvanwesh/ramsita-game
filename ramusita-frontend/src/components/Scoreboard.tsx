@@ -1,7 +1,9 @@
 import { useGameStore } from "../store/gameStore";
+import { getPlayerColor } from "../utils/playerColors";
 
 export function Scoreboard() {
   const state = useGameStore((s) => s.state);
+  const me = useGameStore((s) => s.me);
 
   if (!state || !state.players) return null;
 
@@ -10,25 +12,40 @@ export function Scoreboard() {
   );
 
   return (
-    <div
-      style={{
-        border: "1px solid #ddd",
-        borderRadius: 8,
-        padding: 12,
-        marginBottom: 16,
-        background: "#fafafa",
-      }}
-    >
-      <h3 style={{ marginTop: 0 }}>Current Scores</h3>
-      <ol style={{ paddingLeft: 20, margin: 0 }}>
-        {players.map((p: any, idx: number) => (
-          <li key={p.id} style={{ marginBottom: 4 }}>
-            <strong>
-              #{idx + 1} {p.name}
-            </strong>{" "}
-            — {p.totalScore} pts
-          </li>
-        ))}
+    <div className="mb-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+      <h3 className="mb-2 text-sm font-semibold text-slate-700">
+        Current scores
+      </h3>
+      <ol className="space-y-1 text-sm">
+        {players.map((p: any, idx: number) => {
+          const color = getPlayerColor(p.id);
+          return (
+            <li
+              key={p.id}
+              className="flex items-center justify-between rounded-lg bg-slate-50 px-2 py-1"
+            >
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-semibold text-slate-400">
+                  #{idx + 1}
+                </span>
+                <span
+                  className={`flex h-6 w-6 items-center justify-center rounded-full text-xs font-semibold ${color.avatarBg} ${color.avatarText}`}
+                >
+                  {p.name.charAt(0).toUpperCase()}
+                </span>
+                <span className="font-medium text-slate-800">{p.name}</span>
+                {p.id === me?.id && (
+                  <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-emerald-700">
+                    You
+                  </span>
+                )}
+              </div>
+              <span className="font-medium text-slate-700">
+                {p.totalScore} pts
+              </span>
+            </li>
+          );
+        })}
       </ol>
     </div>
   );

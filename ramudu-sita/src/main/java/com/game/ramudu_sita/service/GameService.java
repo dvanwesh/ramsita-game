@@ -269,13 +269,12 @@ public class GameService {
 
         // apply Ramudu special rule
         if (guessTarget != null && guessTarget.equals(sita)) {
-            delta.put(ramudu, 500);
+            delta.put(ramudu, 5000);
         } else {
             delta.put(ramudu, 0);
+            // Sita gets 5000 points
+            delta.put(sita, 5000);
         }
-
-        // Sita gets 100 points (override base)
-        delta.put(sita, 100);
 
         return delta;
     }

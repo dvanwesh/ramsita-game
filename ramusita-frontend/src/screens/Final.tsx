@@ -1,115 +1,45 @@
 import { useGameStore } from "../store/gameStore";
+import { Scoreboard } from "../components/Scoreboard";
+import { RoundHistoryTable } from "../components/RoundHistoryTable";
 
 export default function Final() {
   const state = useGameStore((s) => s.state);
-  const roundHistory = useGameStore((s) => s.roundHistory);
   const leaveGame = useGameStore((s) => s.leaveGame);
 
   if (!state) {
     return (
-      <div style={{ padding: 20 }}>
-        <h1>Game Finished</h1>
-        <button onClick={leaveGame}>Back to Home</button>
+      <div className="rounded-2xl border border-slate-200 bg-white p-6 text-center shadow-sm">
+        <h1 className="mb-3 text-xl font-semibold text-slate-800">
+          Game finished
+        </h1>
+        <button
+          onClick={leaveGame}
+          className="inline-flex items-center justify-center rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-indigo-500"
+        >
+          Back to home
+        </button>
       </div>
     );
   }
 
-  const players = [...state.players].sort(
-    (a: any, b: any) => b.totalScore - a.totalScore
-  );
-
   return (
-    <div style={{ padding: 20 }}>
-      <h1>🏁 Game Finished</h1>
-
-      <h2>Final Scores</h2>
-      <ol>
-        {players.map((p: any, idx: number) => (
-          <li key={p.id} style={{ marginBottom: 8 }}>
-            <strong>
-              #{idx + 1} {p.name}
-            </strong>{" "}
-            — {p.totalScore} points
-          </li>
-        ))}
-      </ol>
-
-      {roundHistory.length > 0 && (
-        <>
-          <h2 style={{ marginTop: 24 }}>Score by Round</h2>
-          <table
-            style={{
-              borderCollapse: "collapse",
-              marginTop: 8,
-              minWidth: "300px",
-            }}
-          >
-            <thead>
-              <tr>
-                <th style={{ border: "1px solid #ccc", padding: "4px 8px" }}>
-                  Round
-                </th>
-                {players.map((p: any) => (
-                  <th
-                    key={p.id}
-                    style={{ border: "1px solid #ccc", padding: "4px 8px" }}
-                  >
-                    {p.name}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {roundHistory
-                .slice()
-                .sort((a, b) => a.roundNumber - b.roundNumber)
-                .map((round) => (
-                  <tr key={round.roundNumber}>
-                    <td
-                      style={{
-                        border: "1px solid #ccc",
-                        padding: "4px 8px",
-                        fontWeight: "bold",
-                      }}
-                    >
-                      {round.roundNumber}
-                    </td>
-                    {players.map((p: any) => {
-                      const delta = round.deltas[p.id] ?? 0;
-                      const total = round.totals[p.id] ?? 0;
-                      return (
-                        <td
-                          key={p.id}
-                          style={{
-                            border: "1px solid #ccc",
-                            padding: "4px 8px",
-                            textAlign: "right",
-                            whiteSpace: "nowrap",
-                          }}
-                        >
-                          <span style={{ opacity: 0.7 }}>+{delta}</span>{" "}
-                          <strong>({total})</strong>
-                        </td>
-                      );
-                    })}
-                  </tr>
-                ))}
-            </tbody>
-          </table>
-        </>
-      )}
-
-      <button
-        onClick={leaveGame}
-        style={{
-          marginTop: 24,
-          padding: "10px 20px",
-          fontSize: 16,
-          cursor: "pointer",
-        }}
-      >
-        🔄 Start New Game
-      </button>
+    <div className="space-y-4">
+      <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+        <h1 className="mb-2 text-xl font-semibold text-slate-800">
+          🏁 Game finished
+        </h1>
+        <p className="mb-4 text-sm text-slate-500">
+          Thanks for playing! Here’s how everyone did.
+        </p>
+        <Scoreboard />
+        <RoundHistoryTable />
+        <button
+          onClick={leaveGame}
+          className="mt-3 inline-flex items-center justify-center rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-indigo-500"
+        >
+          Start a new game
+        </button>
+      </div>
     </div>
   );
 }

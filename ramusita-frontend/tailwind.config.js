@@ -1,5 +1,5 @@
 /** @type {import('tailwindcss').Config} */
-export default {
+module.exports = {
   content: [
     "./index.html",
     "./src/**/*.{js,ts,jsx,tsx}",
@@ -7,7 +7,7 @@ export default {
   theme: {
     extend: {
       fontFamily: {
-        sans: ["system-ui", "Segoe UI", "Roboto", "sans-serif"],
+        sans: ["system-ui", "ui-sans-serif", "sans-serif"],
       },
     },
   },

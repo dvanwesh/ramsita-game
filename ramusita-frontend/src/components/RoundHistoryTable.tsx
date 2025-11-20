@@ -1,5 +1,5 @@
 import { useGameStore } from "../store/gameStore";
-import "./RoundHistoryTable.css";
+import { getPlayerColor } from "../utils/playerColors";
 
 export function RoundHistoryTable() {
   const state = useGameStore((s) => s.state);
@@ -16,39 +16,50 @@ export function RoundHistoryTable() {
     .sort((a, b) => a.roundNumber - b.roundNumber);
 
   return (
-    <div className="round-history">
-      <h3 className="round-history__title">Score by Round</h3>
+    <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+      <h3 className="mb-2 text-sm font-semibold text-slate-700">
+        Score by round
+      </h3>
 
       {/* Desktop / tablet: table */}
-      <div className="round-history__table-wrapper">
-        <table className="round-history__table">
+      <div className="hidden overflow-x-auto text-xs sm:block">
+        <table className="min-w-full border-collapse text-[11px]">
           <thead>
             <tr>
-              <th className="round-history__th round-history__th--round">
+              <th className="whitespace-nowrap border border-slate-200 bg-slate-100 px-2 py-1 text-left font-semibold">
                 Round
               </th>
-              {players.map((p: any) => (
-                <th key={p.id} className="round-history__th">
-                  {p.name}
-                </th>
-              ))}
+              {players.map((p: any) => {
+                const color = getPlayerColor(p.id);
+                return (
+                  <th
+                    key={p.id}
+                    className={`whitespace-nowrap border border-slate-200 px-2 py-1 text-right font-semibold ${color.tableHeaderBg}`}
+                  >
+                    {p.name}
+                  </th>
+                );
+              })}
             </tr>
           </thead>
           <tbody>
             {sortedHistory.map((round) => (
               <tr key={round.roundNumber}>
-                <td className="round-history__td round-history__td--round">
+                <td className="border border-slate-200 px-2 py-1 font-medium">
                   {round.roundNumber}
                 </td>
                 {players.map((p: any) => {
                   const delta = round.deltas[p.id] ?? 0;
                   const total = round.totals[p.id] ?? 0;
                   return (
-                    <td key={p.id} className="round-history__td">
-                      <span className="round-history__delta">
+                    <td
+                      key={p.id}
+                      className="border border-slate-200 px-2 py-1 text-right font-mono"
+                    >
+                      <span className="mr-1 text-slate-500">
                         {delta >= 0 ? `+${delta}` : delta}
                       </span>
-                      <span className="round-history__total">
+                      <span className="font-semibold text-slate-800">
                         ({total})
                       </span>
                     </td>
@@ -60,30 +71,41 @@ export function RoundHistoryTable() {
         </table>
       </div>
 
-      {/* Mobile: cards */}
-      <div className="round-history__cards">
+      {/* Mobile: stacked cards */}
+      <div className="space-y-2 text-xs sm:hidden">
         {sortedHistory.map((round) => (
-          <div key={round.roundNumber} className="round-card">
-            <div className="round-card__header">
+          <div
+            key={round.roundNumber}
+            className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2"
+          >
+            <div className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
               Round {round.roundNumber}
             </div>
-            {players.map((p: any) => {
-              const delta = round.deltas[p.id] ?? 0;
-              const total = round.totals[p.id] ?? 0;
-              return (
-                <div key={p.id} className="round-card__row">
-                  <span className="round-card__player">{p.name}</span>
-                  <span className="round-card__score">
-                    <span className="round-card__delta">
-                      {delta >= 0 ? `+${delta}` : delta}
+            <div className="space-y-1">
+              {players.map((p: any) => {
+                const delta = round.deltas[p.id] ?? 0;
+                const total = round.totals[p.id] ?? 0;
+                const color = getPlayerColor(p.id);
+                return (
+                  <div
+                    key={p.id}
+                    className="flex items-baseline justify-between"
+                  >
+                    <span
+                      className={`mr-2 rounded-full px-2 py-0.5 text-[11px] font-medium ${color.pillBg} ${color.pillText}`}
+                    >
+                      {p.name}
                     </span>
-                    <span className="round-card__total">
-                      ({total})
+                    <span className="font-mono text-[11px] text-slate-700">
+                      <span className="mr-1 text-slate-500">
+                        {delta >= 0 ? `+${delta}` : delta}
+                      </span>
+                      <span className="font-semibold">({total})</span>
                     </span>
-                  </span>
-                </div>
-              );
-            })}
+                  </div>
+                );
+              })}
+            </div>
           </div>
         ))}
       </div>

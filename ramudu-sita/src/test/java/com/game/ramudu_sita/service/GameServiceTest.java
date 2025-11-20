@@ -156,9 +156,8 @@ class GameServiceTest {
                 .collect(Collectors.toMap(MyStateResponse.PlayerView::id,
                         MyStateResponse.PlayerView::totalScore));
 
-        assertEquals(500, totals.get(ramuduPlayerId));  // Ramudu gets 500
-        assertEquals(100, totals.get(sitaPlayerId));    // Sita gets 100
-        // third player gets their base chit points (not 500/100)
+        assertEquals(5000, totals.get(ramuduPlayerId));  // Ramudu gets 500
+        // third player gets their base chit points (not 5000/1000)
         String thirdPlayerId = totals.keySet().stream()
                 .filter(id -> !id.equals(ramuduPlayerId) && !id.equals(sitaPlayerId))
                 .findFirst()
@@ -208,8 +207,8 @@ class GameServiceTest {
 
         // Ramudu gets 0 (overriding base chit)
         assertEquals(0, totals.get(ramuduPlayerId));
-        // Sita gets 100
-        assertEquals(100, totals.get(sitaPlayerId));
+        // Sita gets 5000
+        assertEquals(5000, totals.get(sitaPlayerId));
     }
 
     @Test

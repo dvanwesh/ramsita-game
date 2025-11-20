@@ -3,7 +3,11 @@
 @tailwind utilities;
 
 body {
-  @apply font-sans bg-slate-50 text-slate-900;
+  @apply bg-slate-50 text-slate-900;
+}
+
+#root {
+  @apply min-h-screen;
 }
 
 :root {

@@ -1,11 +1,11 @@
 package com.game.ramudu_sita.model;
 
 public enum ChitType {
-    RAMUDU(500, true, false),
+    RAMUDU(5000, true, false),
     SITA(0, false, true),
-    BHARATA(200, false, false),
-    SHATRUGHNA(100, false, false),
-    HANUMAN(400, false, false);
+    BHARATA(2000, false, false),
+    SHATRUGHNA(1000, false, false),
+    HANUMAN(4000, false, false);
 
     private final int basePoints;
     private final boolean ramudu;
