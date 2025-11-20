@@ -1,0 +1,114 @@
+.round-history {
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 12px 12px 10px;
+  background: #fafafa;
+}
+
+.round-history__title {
+  margin: 0 0 8px;
+  font-size: 16px;
+}
+
+/* ---------- DESKTOP TABLE ---------- */
+
+.round-history__table-wrapper {
+  overflow-x: auto;
+}
+
+.round-history__table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+  font-size: 13px;
+}
+
+.round-history__th,
+.round-history__td {
+  border: 1px solid #e5e7eb;
+  padding: 6px 8px;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.round-history__th--round,
+.round-history__td--round {
+  text-align: left;
+  min-width: 56px;
+}
+
+.round-history__th {
+  background: #f3f4f6;
+  font-weight: 600;
+}
+
+.round-history__delta {
+  opacity: 0.7;
+  margin-right: 4px;
+  font-variant-numeric: tabular-nums;
+}
+
+.round-history__total {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- MOBILE CARDS ---------- */
+
+.round-history__cards {
+  display: none;
+  margin-top: 8px;
+  display: none;
+  gap: 8px;
+}
+
+.round-card {
+  border-radius: 10px;
+  border: 1px solid #e5e7eb;
+  padding: 8px 10px;
+  background: #ffffff;
+}
+
+.round-card__header {
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.round-card__row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  font-size: 13px;
+  padding: 2px 0;
+}
+
+.round-card__player {
+  font-weight: 500;
+}
+
+.round-card__score {
+  font-variant-numeric: tabular-nums;
+}
+
+.round-card__delta {
+  opacity: 0.7;
+  margin-right: 4px;
+}
+
+.round-card__total {
+  font-weight: 600;
+}
+
+/* ---------- RESPONSIVE BEHAVIOR ---------- */
+/* On small screens: hide table, show card list */
+
+@media (max-width: 640px) {
+  .round-history__table-wrapper {
+    display: none;
+  }
+
+  .round-history__cards {
+    display: flex;
+    flex-direction: column;
+  }
+}
