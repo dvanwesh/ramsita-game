@@ -1,6 +1,8 @@
 import axios from "axios";
+import { API_BASE_URL } from "../config";
+
 
 export const http = axios.create({
-  baseURL: import.meta.env.VITE_API_URL,
+  baseURL: API_BASE_URL,
   withCredentials: true, // required for PLAYER_TOKEN cookie
 });

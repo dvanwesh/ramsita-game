@@ -33,7 +33,7 @@ export const useGameStore = create<GameState>((set, get) => {
         const gameId = get().gameId;
         if (!gameId) return;
 
-        const res = await http.get(`/api/games/${gameId}/me`);
+        const res = await http.get(`/games/${gameId}/me`);
         const my = res.data;
 
         set((current) => ({
@@ -104,13 +104,13 @@ export const useGameStore = create<GameState>((set, get) => {
         roundHistory: [],
 
         async createGame(playerName, totalRounds) {
-            const res = await http.post("/api/games", { playerName, totalRounds });
+            const res = await http.post("/games", { playerName, totalRounds });
             const { gameId, gameCode } = res.data;
 
             const stomp = attachWebSocket(gameId);
 
             // initial /me for first view
-            const meRes = await http.get(`/api/games/${gameId}/me`);
+            const meRes = await http.get(`/games/${gameId}/me`);
             const my = meRes.data;
 
             localStorage.setItem(
@@ -129,12 +129,12 @@ export const useGameStore = create<GameState>((set, get) => {
         },
 
         async joinGame(code, playerName) {
-            const res = await http.post("/api/games/join", { code, playerName });
+            const res = await http.post("/games/join", { code, playerName });
             const { gameId, gameCode } = res.data;
 
             const stomp = attachWebSocket(gameId);
 
-            const meRes = await http.get(`/api/games/${gameId}/me`);
+            const meRes = await http.get(`/games/${gameId}/me`);
             const my = meRes.data;
 
             localStorage.setItem(
@@ -155,7 +155,7 @@ export const useGameStore = create<GameState>((set, get) => {
         async startGame() {
             const { gameId } = get();
             if (!gameId) return;
-            await http.post(`/api/games/${gameId}/start`);
+            await http.post(`/games/${gameId}/start`);
             // WS + refreshMyState will handle UI updates
         },
 
@@ -190,7 +190,7 @@ export const useGameStore = create<GameState>((set, get) => {
         async guess(playerId) {
             const { gameId } = get();
             if (!gameId) return;
-            await http.post(`/api/games/${gameId}/rounds/current/guess`, {
+            await http.post(`/games/${gameId}/rounds/current/guess`, {
                 guessedPlayerId: playerId,
             });
             // WS + refreshMyState will handle REVEAL/FINISHED
@@ -212,7 +212,7 @@ export const useGameStore = create<GameState>((set, get) => {
             const { gameId, gameCode } = parsed;
 
             try {
-                const meRes = await http.get(`/api/games/${gameId}/me`);
+                const meRes = await http.get(`/games/${gameId}/me`);
                 const my = meRes.data;
 
                 const stomp = attachWebSocket(gameId);

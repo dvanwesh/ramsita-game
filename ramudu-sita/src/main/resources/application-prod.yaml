@@ -7,10 +7,10 @@ spring:
 app:
   cookie-secure: true
   allowed-origins:
-    - "https://ramusita.yourdomain.com"
+    - "https://ramsitagame.com"
 
 server:
-  port: 8080
+  port: 5000
 
 logging:
   level:

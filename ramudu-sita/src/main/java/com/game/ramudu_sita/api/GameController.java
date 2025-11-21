@@ -29,6 +29,9 @@ public class GameController {
     @PostMapping
     public ResponseEntity<CreateOrJoinGameResponse> createGame(@RequestBody CreateGameRequest req, HttpServletRequest request, HttpServletResponse response) {
         String ipKey = extractClientIp(request);
+        if (req.getTotalRounds() < 1 || req.getTotalRounds() > 10) {
+            throw new IllegalArgumentException("totalRounds must be between 1 and 10");
+        }
         var result = gameService.createGame(req.getPlayerName(), req.getTotalRounds(), ipKey);
         var session = playerSessionService.createSession(result.gameId(), result.playerId());
 

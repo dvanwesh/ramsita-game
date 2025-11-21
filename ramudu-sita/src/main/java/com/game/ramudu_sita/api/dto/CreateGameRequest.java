@@ -1,7 +1,13 @@
 package com.game.ramudu_sita.api.dto;
 
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
+
 public class CreateGameRequest {
     private String playerName;
+
+    @Min(1)
+    @Max(10)
     private int totalRounds;
 
     public String getPlayerName() {
