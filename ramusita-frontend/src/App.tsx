@@ -30,7 +30,7 @@ export default function App() {
       <div className="mx-auto flex min-h-screen max-w-5xl flex-col px-4 py-6 sm:px-6 lg:px-8">
         <header className="mb-4 flex items-center justify-between">
           <h1 className="text-xl font-semibold tracking-tight text-slate-800">
-            Ramudu–Sita Chits
+            Rama–Sita Chits
           </h1>
           <button
             onClick={() => setShowHelp(true)}
