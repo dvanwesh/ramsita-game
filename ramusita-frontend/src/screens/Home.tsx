@@ -1,6 +1,5 @@
 import { useState } from "react";
 import { useGameStore } from "../store/gameStore";
-import { Link } from "react-router-dom";
 
 const MIN_ROUNDS = 1;
 const MAX_ROUNDS = 10;
