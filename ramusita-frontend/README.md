@@ -1,73 +1,159 @@
-# React + TypeScript + Vite
+# Ramudu–Sita Frontend (React + Vite)
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+This module contains the React + TypeScript frontend for the Ramudu–Sita online chits game.
+The app is optimized for mobile browsers and talks to the backend via REST + WebSockets (STOMP).
 
-Currently, two official plugins are available:
+## Tech stack
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+- React + TypeScript
+- Vite
+- Tailwind CSS
+- Framer Motion (animations)
+- Axios (HTTP)
+- `@stomp/stompjs` for WebSocket / STOMP
 
-## React Compiler
+## Local development
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+### Prerequisites
 
-## Expanding the ESLint configuration
+- Node.js 20+ (or a recent LTS)
+- npm (or pnpm / yarn)
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+### Environment variables
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+Create `.env.development` for local dev:
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```env
+VITE_API_BASE_URL=http://localhost:8080/api
+VITE_WS_BASE_URL=ws://localhost:8080/ws
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+For production builds (served from S3/CloudFront) we typically use relative URLs and let CloudFront route requests:
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+```env
+# .env (used for production build)
+VITE_API_BASE_URL=/api
+VITE_WS_BASE_URL=/ws
+```
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
+### Install & run locally
+
+```bash
+cd ramusita-frontend
+
+# Install dependencies
+npm install
+
+# Start the Vite dev server
+npm run dev
+```
+
+Vite will usually start on http://localhost:5173 and the frontend will call the backend at http://localhost:8080.
+
+### Build for production
+
+```bash
+npm run build
+```
+
+This creates a `dist/` directory containing static assets.
+
+## Deploying to AWS (S3 + CloudFront)
+
+Typical setup:
+
+- S3 bucket: `ramsitagame-frontend-prod`
+- CloudFront distribution: serves `https://ramsitagame.com` from the bucket
+- CloudFront can route `/api/*` and `/ws*` to the backend service
+
+### 1) Build
+
+```bash
+cd ramusita-frontend
+npm run build
+```
+
+### 2) Sync to S3
+
+```bash
+aws s3 sync dist/ s3://ramsitagame-frontend-prod/ --delete
+```
+
+The `--delete` flag removes files in the bucket that are no longer present in `dist/`.
+Prefer serving via CloudFront with origin access (OAC) rather than making the bucket public.
+
+### 3) Invalidate CloudFront cache
+
+Replace `<CLOUDFRONT_DISTRIBUTION_ID>` with your distribution ID:
+
+```bash
+aws cloudfront create-invalidation \
+  --distribution-id <CLOUDFRONT_DISTRIBUTION_ID> \
+  --paths "/*"
+```
+
+This ensures users receive the latest JS/CSS bundles.
+
+## API & WebSocket usage
+
+HTTP wrapper (example: `src/api/http.ts`):
+
+```ts
+// src/api/http.ts
+import axios from "axios";
+import { API_BASE_URL } from "../config";
+
+export const http = axios.create({
+  baseURL: API_BASE_URL,
+  withCredentials: true, // sends PLAYER_TOKEN cookie
+});
+```
+
+STOMP client (example: `src/api/ws.ts`):
+
+```ts
+// src/api/ws.ts
+import { Client } from "@stomp/stompjs";
+
+export function createStompClient(gameId: string, onState: (state: any) => void) {
+  const client = new Client({
+    brokerURL: import.meta.env.VITE_WS_BASE_URL,
+    reconnectDelay: 2000,
+    onConnect: () => {
+      client.subscribe(`/topic/games/${gameId}/state`, (msg) => {
+        onState(JSON.parse(msg.body));
+      });
     },
-  },
-])
+  });
+
+  client.activate();
+  return client;
+}
+```
+
+## Quick production push (reference)
+
+Whenever you want to push frontend changes to production:
+
+```bash
+cd ramusita-frontend
+npm run build
+aws s3 sync dist/ s3://ramsitagame-frontend-prod/ --delete
+aws cloudfront create-invalidation \
+  --distribution-id <CLOUDFRONT_DISTRIBUTION_ID> \
+  --paths "/*"
+```
+
+Replace `<CLOUDFRONT_DISTRIBUTION_ID>` with your real distribution ID (for example `E123ABC456XYZ`).
+
+---
+
+## Backend build & deploy (brief)
+
+```bash
+cd ramudu-sita
+./mvnw clean package -DskipTests
+
+# If using the EB CLI:
+eb deploy ramsitagame-backend
 ```
